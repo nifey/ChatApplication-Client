@@ -10,10 +10,12 @@ import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.ListView;
 import javafx.scene.control.TextField;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyEvent;
+import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
-
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
@@ -25,13 +27,11 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 
-
 public class Main extends Application {
     ListView<String> userList = new ListView<String>();
     ListView<String> msgList = new ListView<String>();
     ListView<String> grpList = new ListView<String>();
-    String currentChat = new String();
-    Boolean currentChatIsGroup = false;
+    ListView<String> infoList = new ListView<String>();
     ClientThread ct = new ClientThread("localhost", 12121);
 
     @Override
@@ -42,43 +42,74 @@ public class Main extends Application {
 
         Group root = new Group();
         VBox vPane = new VBox();
-        VBox smallVPane = new VBox();
+
+        this.userList.setOnMouseClicked(new EventHandler<MouseEvent>() {
+            @Override
+            public void handle(MouseEvent mouseEvent) {
+                ct.switchToUser(userList.getSelectionModel().getSelectedItem());
+            }
+        });
+
+        this.grpList.setOnMouseClicked(new EventHandler<MouseEvent>() {
+            @Override
+            public void handle(MouseEvent mouseEvent) {
+                ct.switchToGroup(grpList.getSelectionModel().getSelectedItem());
+            }
+        });
+
+        VBox smallVPane1 = new VBox();
+        this.userList.setPrefSize(150,210);
+        this.grpList.setPrefSize(150,210);
+        smallVPane1.getChildren().addAll(this.userList, this.grpList);
+        smallVPane1.setSpacing(10);
+
+        VBox smallVPane2 = new VBox();
+        this.infoList.setPrefSize(450, 50);
+        this.msgList.setPrefSize(450, 370);
+        smallVPane2.getChildren().addAll(this.infoList, this.msgList);
+
+        smallVPane2.setSpacing(10);
         HBox hPane1 = new HBox();
         hPane1.setPadding(new Insets(10));
         hPane1.setSpacing(10);
-        HBox hPane2 = new HBox();
-        hPane2.setPadding(new Insets(10));
-        hPane2.setSpacing(10);
+        hPane1.getChildren().addAll(smallVPane1,smallVPane2);
 
-        this.userList.setPrefSize(150,210);
-        this.grpList.setPrefSize(150,210);
-        smallVPane.getChildren().addAll(this.userList, this.grpList);
-        smallVPane.setSpacing(10);
-        this.msgList.setPrefSize(450, 430);
-
-        hPane1.getChildren().addAll(smallVPane,this.msgList);
         TextField textField = new TextField();
         textField.setPrefWidth(500);
         textField.setPromptText("enter your message");
+        textField.setOnKeyPressed(new EventHandler<KeyEvent>() {
+            @Override
+            public void handle(KeyEvent keyEvent) {
+                if(keyEvent.getCode() == KeyCode.ENTER && !textField.getText().isEmpty()){
+                    ct.sendMessage(textField.getText());
+                    textField.clear();
+                }
+            }
+        });
+
         Button sendButton = new Button();
         sendButton.setPrefSize(100,10);
         sendButton.setText("Send");
         sendButton.setOnAction(new EventHandler<ActionEvent>() {
             @Override
             public void handle(ActionEvent actionEvent) {
-                sendMessage(textField.getText());
+                ct.sendMessage(textField.getText());
                 textField.clear();
             }
         });
-        hPane2.getChildren().addAll(textField, sendButton);
-        vPane.getChildren().addAll(hPane1,hPane2);
 
+        HBox hPane2 = new HBox();
+        hPane2.setPadding(new Insets(10));
+        hPane2.setSpacing(10);
+        hPane2.getChildren().addAll(textField, sendButton);
+
+        vPane.getChildren().addAll(hPane1,hPane2);
         root.getChildren().add(vPane);
-        primaryStage.setTitle("Hello World");
+
+        primaryStage.setTitle("Chat Client");
         primaryStage.setScene(new Scene(root, 630, 500));
         primaryStage.show();
 
-        //TODO handle onapplication exit to logout
     }
 
     private void updateMsgList(List list){
@@ -91,20 +122,18 @@ public class Main extends Application {
         grpList.getItems().addAll(list);
     }
 
+    private void clearGrpList(){
+        grpList.getItems().clear();
+    }
+
     private void updateUserList(List list){
         userList.getItems().clear();
         userList.getItems().addAll(list);
     }
 
-    private void sendMessage(String msg) {
-        if(msg.startsWith("\\")){
-            this.ct.send(ct.socketChannel, msg.substring(1));
-            return;
-        } else if (this.currentChatIsGroup) {
-            this.ct.send(ct.socketChannel, "MSG$" + this.currentChat + "$" + msg +"##");
-        } else {
-            this.ct.send(ct.socketChannel, "GMSG$" + this.currentChat + "$" + msg + "##");
-        }
+    private void updateInfoList(List list){
+        infoList.getItems().clear();
+        infoList.getItems().addAll(list);
     }
 
     public static void main(String[] args) {
@@ -119,9 +148,10 @@ public class Main extends Application {
         private HashMap pendingData = new HashMap();
         private List channelsToWrite = new ArrayList<SocketChannel>();
 
-        private HashMap<String, List> UserChatMap = new HashMap<String, List>();
-        private HashMap<String, List> GroupChatMap = new HashMap<String, List>();
-        String currentChat;
+        private HashMap<String, List> userChatMap = new HashMap<String, List>();
+        private HashMap<String, List> groupChatMap = new HashMap<String, List>();
+        private List<String> infoChatList = new ArrayList<String>();
+        String currentChat = new String("");
         Boolean currentChatIsGroup = false;
 
         public ClientThread(String hostname, int port) {
@@ -178,6 +208,18 @@ public class Main extends Application {
                 }
             }
         }
+
+        private void sendMessage(String msg) {
+            if (msg.startsWith("\\")) {
+                this.send(ct.socketChannel, msg.substring(1));
+                return;
+            } else if (!this.currentChatIsGroup) {
+                this.send(ct.socketChannel, "MSG$" + this.currentChat + "$" + msg + "##");
+            } else {
+                this.send(ct.socketChannel, "GMSG$" + this.currentChat + "$" + msg + "##");
+            }
+        }
+
 
         private void write(SelectionKey key){
             SocketChannel socketChannel = (SocketChannel) key.channel();
@@ -254,6 +296,11 @@ public class Main extends Application {
                         displayMessage(msgParts[1], msgParts[2]);
                     }
                     break;
+                case "SELF":
+                    if(msgParts.length>3) {
+                        displaySelfMessage(msgParts[1], msgParts[2] + " : " + msgParts[3]);
+                    }
+                    break;
                 case "INFO":
                     if(msgParts.length>1) {
                         displayInfo(msgParts[1]);
@@ -268,7 +315,11 @@ public class Main extends Application {
                     updateUsersLater(msgParts[1]);
                     break;
                 case "GROUPS":
-                    updateGroups(msgParts[1]);
+                    if(msgParts.length==1){
+                        clearGrpList();
+                    } else {
+                        updateGroups(msgParts[1]);
+                    }
                     break;
             }
         }
@@ -277,6 +328,10 @@ public class Main extends Application {
             ArrayList<String> userList = new ArrayList<String>();
             for (String user : users.split(",")) {
                 userList.add(user);
+            }
+            if (currentChat.equals("")) {
+                currentChatIsGroup = false;
+                currentChat = userList.get(0);
             }
             Platform.runLater(new Runnable (){
                 @Override
@@ -299,37 +354,112 @@ public class Main extends Application {
             });
         }
 
-        void displayMessage(String sender, String msg){
-            ArrayList<String> msgList = new ArrayList<String>();
-            msgList.add(sender + " : " + msg);
-            Platform.runLater(new Runnable (){
-                @Override
-                public void run(){
-                    updateMsgList(msgList);
+        void switchToUser(String user) {
+            this.currentChat = user;
+            this.currentChatIsGroup = false;
+            synchronized (userChatMap) {
+                ArrayList<String> msgList = (ArrayList<String>) userChatMap.get(user);
+                if (msgList == null) {
+                    msgList = new ArrayList<String>();
+                    userChatMap.put(user, msgList);
                 }
-            });
+                ArrayList<String> finalMsgList = msgList;
+                Platform.runLater(new Runnable() {
+                    @Override
+                    public void run() {
+                        updateMsgList(finalMsgList);
+                    }
+                });
+            }
+        }
+
+        void switchToGroup(String group) {
+            this.currentChat = group;
+            this.currentChatIsGroup = true;
+            synchronized (groupChatMap) {
+                ArrayList<String> msgList = (ArrayList<String>) groupChatMap.get(group);
+                if (msgList == null) {
+                    msgList = new ArrayList<String>();
+                    groupChatMap.put(group, msgList);
+                }
+                ArrayList<String> finalMsgList = msgList;
+                Platform.runLater(new Runnable() {
+                    @Override
+                    public void run() {
+                        updateMsgList(finalMsgList);
+                    }
+                });
+            }
+        }
+
+        void displayMessage(String sender, String msg){
+            synchronized (userChatMap) {
+                ArrayList<String> msgList = (ArrayList<String>) userChatMap.get(sender);
+                if (msgList == null) {
+                    msgList = new ArrayList<String>();
+                    userChatMap.put(sender, msgList);
+                }
+                msgList.add(sender + " : " + msg);
+                if (!currentChatIsGroup && currentChat.equals(sender)) {
+                    ArrayList<String> finalMsgList = msgList;
+                    Platform.runLater(new Runnable() {
+                        @Override
+                        public void run() {
+                            updateMsgList(finalMsgList);
+                        }
+                    });
+                }
+            }
+        }
+
+        void displaySelfMessage(String sender, String msg){
+            synchronized (userChatMap) {
+                ArrayList<String> msgList = (ArrayList<String>) userChatMap.get(sender);
+                if (msgList == null) {
+                    msgList = new ArrayList<String>();
+                    userChatMap.put(sender, msgList);
+                }
+                msgList.add(msg);
+                if (!currentChatIsGroup && currentChat.equals(sender)) {
+                    ArrayList<String> finalMsgList = msgList;
+                    Platform.runLater(new Runnable() {
+                        @Override
+                        public void run() {
+                            updateMsgList(finalMsgList);
+                        }
+                    });
+                }
+            }
         }
 
         void displayGroupMessage(String grpName, String sender, String msg){
-            ArrayList<String> msgList = new ArrayList<String>();
-            msgList.add(grpName + " => " + sender + " : " + msg);
-            Platform.runLater(new Runnable (){
-                @Override
-                public void run(){
-                    updateMsgList(msgList);
-                }
-            });
+            ArrayList<String> msgList = (ArrayList<String>) groupChatMap.get(grpName);
+            if(msgList == null){
+                msgList = new ArrayList<String>();
+                groupChatMap.put(grpName, msgList);
+            }
+            msgList.add(sender + " : " + msg);
+            if(currentChatIsGroup && currentChat.equals(grpName)) {
+                ArrayList<String> finalMsgList = msgList;
+                Platform.runLater(new Runnable() {
+                    @Override
+                    public void run() {
+                        updateMsgList(finalMsgList);
+                    }
+                });
+            }
         }
 
         void displayInfo(String info){
-            ArrayList<String> msgList = new ArrayList<String>();
-            msgList.add(info);
-            Platform.runLater(new Runnable (){
-                @Override
-                public void run(){
-                    updateMsgList(msgList);
-                }
-            });
+            synchronized (infoChatList) {
+                infoChatList.add(info);
+                Platform.runLater(new Runnable() {
+                    @Override
+                    public void run() {
+                        updateInfoList(infoChatList);
+                    }
+                });
+            }
         }
 
         void send(SocketChannel socketChannel, String msg){
