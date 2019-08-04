@@ -211,7 +211,40 @@ public class Main extends Application {
 
         private void sendMessage(String msg) {
             if (msg.startsWith("\\")) {
-                this.send(ct.socketChannel, msg.substring(1));
+                String[] msgParts = msg.split(" ");
+                switch (msgParts[0]){
+                    case "\\login":
+                        if(msgParts.length>1) {
+                            this.send(ct.socketChannel, "LOGIN$" + msgParts[1] + "##");
+                        }
+                        break;
+                    case "\\gcreate":
+                        if(msgParts.length>1) {
+                            this.send(ct.socketChannel, "GCREATE$" + msgParts[1] + "##");
+                        }
+                        break;
+                    case "\\gdelete":
+                        if(msgParts.length>1) {
+                            this.send(ct.socketChannel, "GDELETE$" + msgParts[1] + "##");
+                        }
+                        break;
+                    case "\\gadd":
+                        if(msgParts.length>2){
+                            this.send(ct.socketChannel, "GADD$" + msgParts[1] + "$" + msgParts[2] +  "##");
+                        }
+                        break;
+                    case "\\gremove":
+                        if(msgParts.length>2){
+                            this.send(ct.socketChannel, "GREMOVE$" + msgParts[1] + "$" + msgParts[2] +  "##");
+                        }
+                        break;
+                    case "\\logout":
+                        this.send(socketChannel, "LOGOUT##");
+                        break;
+                    default:
+                        this.send(ct.socketChannel, msg.substring(1));
+                        break;
+                }
                 return;
             } else if (!this.currentChatIsGroup) {
                 this.send(ct.socketChannel, "MSG$" + this.currentChat + "$" + msg + "##");
