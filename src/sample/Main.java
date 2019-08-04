@@ -40,6 +40,10 @@ public class Main extends Application {
         t.setDaemon(true);
         t.start();
 
+        if(!ct.isConnected){
+            System.exit(0);
+        }
+
         Group root = new Group();
         VBox vPane = new VBox();
 
@@ -147,6 +151,7 @@ public class Main extends Application {
         private ByteBuffer readBuffer = ByteBuffer.allocate(4092);
         private HashMap pendingData = new HashMap();
         private List channelsToWrite = new ArrayList<SocketChannel>();
+        Boolean isConnected = false;
 
         private HashMap<String, List> userChatMap = new HashMap<String, List>();
         private HashMap<String, List> groupChatMap = new HashMap<String, List>();
@@ -163,6 +168,7 @@ public class Main extends Application {
                 selector = Selector.open();
                 socketChannel.register(selector, SelectionKey.OP_READ);
                 System.out.println("DEBUG: ClientThread: Connected to server");
+                isConnected = true;
             } catch (IOException e) {
                 e.printStackTrace();
             }
