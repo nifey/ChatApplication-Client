@@ -1,7 +1,7 @@
 # ChatApplication Client
 
 This is a chat client application built using JavaFx and Java Nio.
-The Server application for this client can be found at [here](https://github.com/nifey/ChatApplication-Server).
+The Server application for this client can be found [here](https://github.com/nifey/ChatApplication-Server).
 
 ![Screenshot](https://github.com/nifey/ChatApplication-Client/blob/master/Screenshot.png)
 

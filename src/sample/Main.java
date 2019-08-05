@@ -164,7 +164,7 @@ public class Main extends Application {
             System.out.println("DEBUG: ClientThread: Created");
             InetSocketAddress serverAddress = new InetSocketAddress(hostname, port);
             try {
-                this.socketChannel = SocketChannel.open(new InetSocketAddress("localhost",12121));
+                this.socketChannel = SocketChannel.open(serverAddress);
                 this.socketChannel.configureBlocking(false);
                 selector = Selector.open();
                 socketChannel.register(selector, SelectionKey.OP_READ);
@@ -186,7 +186,9 @@ public class Main extends Application {
                         while(channels.hasNext()){
                             SocketChannel socketChannel = (SocketChannel) channels.next();
                             SelectionKey key = socketChannel.keyFor(selector);
-                            key.interestOps(SelectionKey.OP_WRITE);
+                            if(key != null && key.isValid()) {
+                                key.interestOps(SelectionKey.OP_WRITE);
+                            }
                         }
                         channelsToWrite.clear();
                     }
