@@ -17,6 +17,7 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 import java.io.IOException;
+import java.net.ConnectException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
@@ -169,7 +170,9 @@ public class Main extends Application {
                 socketChannel.register(selector, SelectionKey.OP_READ);
                 System.out.println("DEBUG: ClientThread: Connected to server");
                 isConnected = true;
-            } catch (IOException e) {
+            } catch (ConnectException e) {
+                System.out.println("Could not connect to server");
+            } catch (IOException e){
                 e.printStackTrace();
             }
         }
@@ -189,6 +192,14 @@ public class Main extends Application {
                     }
 
                     System.out.println("DEBUG: Client: Selector waiting for event");
+                    if(selector == null){
+                        try{
+                            Thread.sleep(1000);
+                        } catch (Exception e){
+                            e.printStackTrace();
+                        }
+                        continue;
+                    }
                     this.selector.select();
                     Iterator<SelectionKey> iter = this.selector.selectedKeys().iterator();
 
