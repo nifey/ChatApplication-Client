@@ -260,6 +260,12 @@ public class Main extends Application {
                     case "\\logout":
                         this.send(socketChannel, "LOGOUT##");
                         break;
+                    case "\\send":
+                        if(!currentChat.equals("") && msgParts.length>1){
+                            FileSenderThread fst = new FileSenderThread("localhost",12345,this, msgParts[1], currentChat,currentChatIsGroup);
+                            new Thread(fst).start();
+                        }
+                        break;
                     default:
                         this.send(ct.socketChannel, msg.substring(1));
                         break;
