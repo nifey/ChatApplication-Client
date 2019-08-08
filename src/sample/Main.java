@@ -379,6 +379,30 @@ public class Main extends Application {
                         updateGroups(msgParts[1]);
                     }
                     break;
+                case "FILE":
+                    if(msgParts.length>4){
+                        int numberOfBytes = -1;
+                        try{
+                            numberOfBytes = Integer.parseInt(msgParts[3]);
+                        } catch (Exception e){
+                            e.printStackTrace();
+                        }
+                        FileReceiverThread frt = new FileReceiverThread("localhost", 12345, this, msgParts[2],numberOfBytes, msgParts[4], msgParts[1],false,null);
+                        new Thread(frt).start();
+                    }
+                    break;
+                case "GFILE":
+                    if(msgParts.length>4){
+                        int numberOfBytes = -1;
+                        try{
+                            numberOfBytes = Integer.parseInt(msgParts[4]);
+                        } catch (Exception e){
+                            e.printStackTrace();
+                        }
+                        FileReceiverThread frt = new FileReceiverThread("localhost", 12345, this, msgParts[3],numberOfBytes, msgParts[5], msgParts[2],true, msgParts[1]);
+                        new Thread(frt).start();
+                    }
+                    break;
             }
         }
 
