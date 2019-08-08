@@ -30,6 +30,10 @@ Deletes the group if you are the admin of the group
 
 Deletes the users given by the list of users from the group given by groupname. You can remove users only if you are an admin or if you just want to remove yourself from the group.
 
+* \send path_to_file
+
+Sends the file specified by the path to the user or group
+
 * \logout
 
 Logs you out. Don't forget to logout before closing the application.
