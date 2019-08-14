@@ -7,8 +7,10 @@ import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.*;
 import java.util.*;
+import java.util.logging.Logger;
 
 public class FileReceiverThread implements Runnable {
+    private Logger logger = Logger.getLogger(FileReceiverThread.class.getName());
     private SocketChannel socketChannel;
     private Selector selector;
     private ByteBuffer readBuffer = ByteBuffer.allocate(4092);
@@ -21,6 +23,10 @@ public class FileReceiverThread implements Runnable {
     private String sender;
     private String grpName;
     private Boolean isGroup;
+
+    private void log(String msg){
+        logger.info(FileReceiverThread.class.getName()+" : "+msg);
+    }
 
     public FileReceiverThread(String hostname, int port, Main.ClientThread ct, String filename, int numberOfBytes, String keyString, String sender, Boolean isGroup, String grpName){
         InetSocketAddress serverAddress = new InetSocketAddress(hostname, port);
@@ -37,16 +43,16 @@ public class FileReceiverThread implements Runnable {
             this.selector = Selector.open();
             this.socketChannel.register(selector, SelectionKey.OP_WRITE);
         } catch (IOException e) {
-            System.out.println("DEBUG: FileReceiverThread: Could not connect to file server");
+            log("Could not connect to file server");
             e.printStackTrace();
         }
     }
 
     public void run(){
-        System.out.println("DEBUG: FileReceiverThread: Started");
+        log("Started");
         while(running){
             try {
-                System.out.println("DEBUG: FileReceiverThread: Selector waiting for event");
+                log("Selector waiting for event");
                 if(this.selector == null){
                     this.running = false;
                     continue;
@@ -62,13 +68,11 @@ public class FileReceiverThread implements Runnable {
                     }
                     if (currentKey.isAcceptable()) {
                         socketChannel.finishConnect();
-                        System.out.println("DEBUG: FileReceiverThread: Accepted connection");
+                        log("Accepted connection from "+ socketChannel.getRemoteAddress());
                     } else if (currentKey.isReadable()) {
                         this.receiveFile(currentKey);
-                        System.out.println("DEBUG: FileReceiverThread: Finished reading data");
                     } else if (currentKey.isWritable()){
                         this.write(currentKey);
-                        System.out.println("DEBUG: FileReceiverThread: Finished writing data");
                     }
                 }
             } catch (Exception e){
@@ -79,7 +83,6 @@ public class FileReceiverThread implements Runnable {
 
     private void write(SelectionKey key) {
         SocketChannel socketChannel = (SocketChannel) key.channel();
-        System.out.println("Sending SEND message");
         String msg = "SEND$" + this.keyString + "##";
         ByteBuffer receiveMsg = ByteBuffer.wrap(msg.getBytes());
         try {
@@ -109,10 +112,9 @@ public class FileReceiverThread implements Runnable {
                 }
                 buf.clear();
                 numRead = numRead + bytes;
-                System.out.println("nob: "+numberOfBytes + "   numRead:"+numRead);
             }
             fc.close();
-            System.out.println("Received file with keyString "+keyString);
+            log("Received file with keyString "+keyString);
             if(this.isGroup) {
                 this.ct.displayInfo("Recieved file " + filename + " from " + sender + " in the group " + grpName);
             } else {

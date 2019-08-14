@@ -27,12 +27,16 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.logging.Logger;
 
 public class Main extends Application {
     ListView<String> userList = new ListView<String>();
     ListView<String> msgList = new ListView<String>();
     ListView<String> grpList = new ListView<String>();
     ListView<String> infoList = new ListView<String>();
+    static {
+        System.setProperty("java.util.logging.SimpleFormatter.format", "[%1$tF %1$tT] [%4$-7s] %5$s %n");
+    }
     ClientThread ct = new ClientThread("localhost", 12121);
 
     @Override
@@ -147,6 +151,7 @@ public class Main extends Application {
 
 
     class ClientThread implements Runnable{
+        Logger logger = Logger.getLogger(ClientThread.class.getName());
         SocketChannel socketChannel;
         private Selector selector;
         private ByteBuffer readBuffer = ByteBuffer.allocate(4092);
@@ -160,25 +165,29 @@ public class Main extends Application {
         String currentChat = new String("");
         Boolean currentChatIsGroup = false;
 
+        private void log (String msg){
+            logger.info(ClientThread.class.getName()+" : "+msg);
+        }
+
         public ClientThread(String hostname, int port) {
-            System.out.println("DEBUG: ClientThread: Created");
+            log("Created");
             InetSocketAddress serverAddress = new InetSocketAddress(hostname, port);
             try {
                 this.socketChannel = SocketChannel.open(serverAddress);
                 this.socketChannel.configureBlocking(false);
                 selector = Selector.open();
                 socketChannel.register(selector, SelectionKey.OP_READ);
-                System.out.println("DEBUG: ClientThread: Connected to server");
+                log("Connected to server");
                 isConnected = true;
             } catch (ConnectException e) {
-                System.out.println("Could not connect to server");
+                log("Could not connect to server");
             } catch (IOException e){
                 e.printStackTrace();
             }
         }
 
         public void run(){
-            System.out.println("DEBUG: Client: Started");
+            log("Started");
             while(true){
                 try {
                     synchronized (channelsToWrite){
@@ -193,7 +202,7 @@ public class Main extends Application {
                         channelsToWrite.clear();
                     }
 
-                    System.out.println("DEBUG: Client: Selector waiting for event");
+                    log("Selector waiting for event");
                     if(selector == null){
                         try{
                             Thread.sleep(1000);
@@ -213,13 +222,11 @@ public class Main extends Application {
                         }
                         if (currentKey.isAcceptable()) {
                             socketChannel.finishConnect();
-                            System.out.println("DEBUG: Client: Accepted connection");
+                            log("Accepted connection from "+socketChannel.getRemoteAddress());
                         } else if (currentKey.isReadable()) {
                             this.read(currentKey);
-                            System.out.println("DEBUG: Client: Finished reading data");
                         } else if (currentKey.isWritable()){
                             this.write(currentKey);
-                            System.out.println("DEBUG: Client: Finished writing data");
                         }
                     }
                 } catch (Exception e){
@@ -284,11 +291,9 @@ public class Main extends Application {
             synchronized (pendingData) {
                 List pendingWriteData = (List) this.pendingData.get(socketChannel);
                 while (!pendingWriteData.isEmpty()) {
-                    System.out.println("DEBUG: Client: Found something to write");
                     ByteBuffer buffer = (ByteBuffer) pendingWriteData.get(0);
                     try {
                         socketChannel.write(buffer);
-                        System.out.println("DEBUG: Client: Written Data");
                         if(buffer.remaining()>0){
                             break;
                         }
@@ -300,7 +305,6 @@ public class Main extends Application {
 
                 if(pendingWriteData.isEmpty()){
                     key.interestOps(SelectionKey.OP_READ);
-                    System.out.println("DEBUG: Client: Nothing more to write in that channel");
                 }
             }
         }
@@ -332,16 +336,15 @@ public class Main extends Application {
 
             readBuffer.flip();
             byte[] bytes = new byte[readBuffer.remaining()];
-            System.out.println("DEBUG: Client: Read "+readBuffer.remaining()+" Characters");
             readBuffer.get(bytes);
             String read = new String(bytes);
-            System.out.println("DEBUG: Client: Read :"+read+" of length "+read.length());
+            log("Read :"+read+" of length "+read.length());
             int in = read.lastIndexOf("##");
             if (in != -1) {
                 read = read.substring(0, in);
                 for (String taskStr : read.split("##")) {
                     this.handleMessage(taskStr);
-                    System.out.println("DEBUG: Client: Msg to be handled: " + taskStr);
+                    log("Msg to be handled: " + taskStr);
                 }
             }
         }
@@ -554,7 +557,6 @@ public class Main extends Application {
                         pendingData.put(socketChannel, dataList);
                     }
                     dataList.add(ByteBuffer.wrap(msg.getBytes()));
-                    System.out.println("DEBUG: Client: Data added to pending data");
                 }
             }
             selector.wakeup();

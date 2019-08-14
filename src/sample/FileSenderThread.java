@@ -12,8 +12,10 @@ import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
+import java.util.logging.Logger;
 
 public class FileSenderThread implements Runnable {
+        private Logger logger = Logger.getLogger(FileSenderThread.class.getName());
         private SocketChannel socketChannel;
         private Selector selector;
         private ByteBuffer readBuffer = ByteBuffer.allocate(4092);
@@ -25,6 +27,10 @@ public class FileSenderThread implements Runnable {
         private String currentChat;
         private Boolean currentChatIsGroup;
         private Boolean running = true;
+
+        private void log(String msg){
+            logger.info(FileSenderThread.class.getName()+" : "+msg);
+        }
 
         public FileSenderThread(String hostname, int port, Main.ClientThread ct, String filename, String currentChat, Boolean currentChatIsGroup){
             InetSocketAddress serverAddress = new InetSocketAddress(hostname, port);
@@ -38,16 +44,16 @@ public class FileSenderThread implements Runnable {
                 this.selector = Selector.open();
                 this.socketChannel.register(selector, SelectionKey.OP_WRITE);
             } catch (IOException e) {
-                System.out.println("DEBUG: FileSenderThread: Could not connect to file server");
+                log("Could not connect to file server");
                 e.printStackTrace();
             }
         }
 
         public void run(){
-            System.out.println("DEBUG: FileSenderThread: Started");
+            log("Started");
             while(running){
                 try {
-                    System.out.println("DEBUG: FileSenderThread: Selector waiting for event");
+                    log("Selector waiting for event");
                     if(this.selector == null){
                         this.running = false;
                         continue;
@@ -63,13 +69,11 @@ public class FileSenderThread implements Runnable {
                         }
                         if (currentKey.isAcceptable()) {
                             socketChannel.finishConnect();
-                            System.out.println("DEBUG: FileSenderThread: Accepted connection");
+                            log("Accepted connection");
                         } else if (currentKey.isReadable()) {
                             this.read(currentKey);
-                            System.out.println("DEBUG: FileSenderThread: Finished reading data");
                         } else if (currentKey.isWritable()){
                             this.write(currentKey);
-                            System.out.println("DEBUG: FileSenderThread: Finished writing data");
                         }
                     }
                 } catch (Exception e){
@@ -93,7 +97,6 @@ public class FileSenderThread implements Runnable {
                                 e.printStackTrace();
                             }
                         } else if(file.length()!=0 && file.isFile()) {
-                            System.out.println("Sending RECEIVE message");
                             String msg = "RECEIVE$" + file.length() + "##";
                             ByteBuffer receiveMsg = ByteBuffer.wrap(msg.getBytes());
                             while (receiveMsg.remaining() > 0) {
@@ -105,7 +108,6 @@ public class FileSenderThread implements Runnable {
                                 e.printStackTrace();
                             }
 
-                            System.out.println("Writing file");
                             FileChannel fc = new FileInputStream(file).getChannel();
                             ByteBuffer buf = ByteBuffer.allocate(4096);
                             int numRead = fc.read(buf);
@@ -118,9 +120,8 @@ public class FileSenderThread implements Runnable {
                                 } while (bytesRem > 0);
                                 buf.clear();
                                 numRead = fc.read(buf);
-                                System.out.println("writing...");
                             }
-                            System.out.println("finished writing...");
+                            log("Finished writing file " + filename + " to "+ socketChannel.getRemoteAddress());
                             fc.close();
                             key.interestOps(SelectionKey.OP_READ);
                         }
@@ -138,25 +139,25 @@ public class FileSenderThread implements Runnable {
                 }
         }
 
-        private void read (SelectionKey key){
+        private void read (SelectionKey key) {
             SocketChannel socketChannel = (SocketChannel) key.channel();
             readBuffer.clear();
             int numRead;
             try {
                 numRead = socketChannel.read(readBuffer);
-            } catch (IOException e){
+            } catch (IOException e) {
                 key.cancel();
                 try {
                     socketChannel.close();
-                } catch (IOException e1){
+                } catch (IOException e1) {
                     e1.printStackTrace();
                 }
                 return;
             }
-            if(numRead == -1){
+            if (numRead == -1) {
                 try {
                     key.channel().close();
-                } catch (IOException e){
+                } catch (IOException e) {
                     e.printStackTrace();
                 }
                 key.cancel();
@@ -165,38 +166,35 @@ public class FileSenderThread implements Runnable {
 
             readBuffer.flip();
             byte[] bytes = new byte[readBuffer.remaining()];
-            System.out.println("DEBUG: FileSenderThread: Read "+readBuffer.remaining()+" Characters");
             readBuffer.get(bytes);
             String read = new String(bytes);
-            System.out.println("DEBUG: FileSenderThread: Read :"+read+" of length "+read.length());
+            log("Read :" + read + " of length " + read.length());
             int in = read.lastIndexOf("##");
             if (in != -1) {
                 read = read.substring(0, in);
-                System.out.println("DEBUG: FileSenderThread: readinside " + read);
-                String [] msgParts = read.split("\\$");
-                if(msgParts[0].equals("RECEIVED")){
-                    if(msgParts.length>2) {
+                String[] msgParts = read.split("\\$");
+                if (msgParts[0].equals("RECEIVED")) {
+                    if (msgParts.length > 2) {
                         String keyString = msgParts[1];
                         int numberOfBytes = -1;
                         try {
                             numberOfBytes = Integer.parseInt(msgParts[2]);
-                        }catch (NumberFormatException e){
+                        } catch (NumberFormatException e) {
                             e.printStackTrace();
                         }
-                        if(numberOfBytes>0) {
-                            System.out.println("DEBUG: FileSenderThread: got keyString "+keyString+" for file "+this.filename);
-                            String newName = filename.substring(filename.lastIndexOf("/")+1);
-                            if(currentChatIsGroup){
-                                this.ct.send(this.ct.socketChannel,"GFILE$"+ currentChat +"$"+ newName +"$"+msgParts[2]+"$"+msgParts[1]+"##");
-                                this.ct.displayInfo("File "+ filename +" has been sent to the group "+currentChat);
+                        if (numberOfBytes > 0) {
+                            String newName = filename.substring(filename.lastIndexOf("/") + 1);
+                            if (currentChatIsGroup) {
+                                this.ct.send(this.ct.socketChannel, "GFILE$" + currentChat + "$" + newName + "$" + msgParts[2] + "$" + msgParts[1] + "##");
+                                this.ct.displayInfo("File " + filename + " has been sent to the group " + currentChat);
                             } else {
-                                this.ct.send(this.ct.socketChannel,"FILE$"+ currentChat +"$"+ newName +"$"+msgParts[2]+"$"+msgParts[1]+"##");
-                                this.ct.displayInfo("File "+ filename +" has been sent to "+currentChat);
+                                this.ct.send(this.ct.socketChannel, "FILE$" + currentChat + "$" + newName + "$" + msgParts[2] + "$" + msgParts[1] + "##");
+                                this.ct.displayInfo("File " + filename + " has been sent to " + currentChat);
                             }
                             try {
                                 this.socketChannel.close();
                                 this.running = false;
-                            } catch (Exception e){
+                            } catch (Exception e) {
                                 e.printStackTrace();
                             }
                         }
