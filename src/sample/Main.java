@@ -145,6 +145,13 @@ public class Main extends Application {
         infoList.getItems().addAll(list);
     }
 
+    private void clearAllLists(){
+        grpList.getItems().clear();
+        userList.getItems().clear();
+        infoList.getItems().clear();
+        msgList.getItems().clear();
+    }
+
     public static void main(String[] args) {
         launch(args);
     }
@@ -266,6 +273,12 @@ public class Main extends Application {
                         break;
                     case "\\logout":
                         this.send(socketChannel, "LOGOUT##");
+                        clearAllLists();
+                        currentChat = "";
+                        currentChatIsGroup = false;
+                        userChatMap.clear();
+                        groupChatMap.clear();
+                        infoChatList.clear();
                         break;
                     case "\\send":
                         if(!currentChat.equals("") && msgParts.length>1){
