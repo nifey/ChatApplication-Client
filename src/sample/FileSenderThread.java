@@ -102,11 +102,6 @@ public class FileSenderThread implements Runnable {
                             while (receiveMsg.remaining() > 0) {
                                 socketChannel.write(receiveMsg);
                             }
-                            try{
-                                Thread.sleep(100);
-                            } catch (Exception e){
-                                e.printStackTrace();
-                            }
 
                             FileChannel fc = new FileInputStream(file).getChannel();
                             ByteBuffer buf = ByteBuffer.allocate(4096);
